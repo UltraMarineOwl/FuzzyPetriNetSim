@@ -1,0 +1,38 @@
+[gd_scene load_steps=5 format=3 uid="uid://chgw5h0sam1wx"]
+
+[ext_resource type="Script" path="res://Scripts/Place.gd" id="1_ptcfd"]
+[ext_resource type="Texture2D" uid="uid://eovosx8crbyk" path="res://Assets/Безымянный.png" id="2_plpli"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_6l4rf"]
+radius = 27.0
+
+[sub_resource type="LabelSettings" id="LabelSettings_yu3sh"]
+font_size = 14
+outline_size = 2
+outline_color = Color(0, 0, 0, 1)
+
+[node name="Place" type="Node2D"]
+script = ExtResource("1_ptcfd")
+
+[node name="StaticBody2D" type="StaticBody2D" parent="."]
+light_mask = 2
+visibility_layer = 2
+
+[node name="Sprite2D" type="Sprite2D" parent="StaticBody2D"]
+light_mask = 2
+visibility_layer = 2
+scale = Vector2(0.84375, 0.828125)
+texture = ExtResource("2_plpli")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
+shape = SubResource("CircleShape2D_6l4rf")
+
+[node name="Label" type="Label" parent="."]
+offset_left = -31.0
+offset_top = -31.0
+offset_right = 31.0
+offset_bottom = 31.0
+text = "0"
+label_settings = SubResource("LabelSettings_yu3sh")
+horizontal_alignment = 1
+vertical_alignment = 1

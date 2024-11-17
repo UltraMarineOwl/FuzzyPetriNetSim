@@ -1,0 +1,27 @@
+[gd_scene load_steps=4 format=3 uid="uid://dcjsehb5qnqe3"]
+
+[ext_resource type="Script" path="res://Scripts/Transitions.gd" id="1_mtmwl"]
+[ext_resource type="Texture2D" uid="uid://dctfq2cjucg8m" path="res://Assets/Transition.png" id="2_dre3t"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_46e1j"]
+size = Vector2(24.5, 47.5)
+
+[node name="Transitions" type="Node2D"]
+script = ExtResource("1_mtmwl")
+
+[node name="StaticBody2D" type="StaticBody2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
+position = Vector2(3.75, 6.25)
+shape = SubResource("RectangleShape2D_46e1j")
+
+[node name="Sprite2D" type="Sprite2D" parent="StaticBody2D"]
+texture = ExtResource("2_dre3t")
+
+[node name="Label" type="Label" parent="."]
+offset_left = -40.0
+offset_top = -54.0
+offset_right = 40.0
+offset_bottom = -31.0
+horizontal_alignment = 1
+vertical_alignment = 1
