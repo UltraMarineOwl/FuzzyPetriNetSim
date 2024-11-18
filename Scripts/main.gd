@@ -6,6 +6,13 @@ var TransitionScene = preload("res://Scenes/Transitions.tscn")
 
 @onready var connections_node: Node2D = $Connections
 
+# Переменные для кнопок режимов
+var place_mode_button: CheckButton
+var transition_mode_button: CheckButton
+var connect_mode_button: CheckButton
+var fire_button: Button  # Если необходимо
+var mode_button_group: ButtonGroup = ButtonGroup.new()
+
 var is_place_mode_enabled: bool = false
 var is_transition_mode_enabled: bool = false
 var is_connect_mode_enabled: bool = false
@@ -15,57 +22,83 @@ var selected_transition: Transition = null
 
 
 func _ready() -> void:
-	
-	# Добавляем кнопку для срабатывания перехода
-	var fire_button = Button.new()
-	fire_button.text = "Fire Transition"
-	fire_button.position = Vector2(350, 10)
-	add_child(fire_button)
-	fire_button.toggled.connect(_on_fire_button_pressed)
-	
 	#########################################
 # Добавляем кнопку для переключения режима добавления мест
-	var place_mode_button = Button.new()
+	place_mode_button = CheckButton.new()
 	place_mode_button.text = "Add Places"
 	place_mode_button.toggle_mode = true  # Позволяет кнопке работать как переключатель
+	place_mode_button.button_group = mode_button_group
 	place_mode_button.position = Vector2(10, 10)
 	add_child(place_mode_button)
 	place_mode_button.toggled.connect(_on_place_mode_toggled)
-	# Переменная для отслеживания режима
-	is_place_mode_enabled = false
 	
 	#########################################
 	# Добавляем кнопку для переключения режима добавления переходов
-	var transition_mode_button = Button.new()
+	transition_mode_button = CheckButton.new()
 	transition_mode_button.text = "Add Transitions"
 	transition_mode_button.toggle_mode = true
+	transition_mode_button.button_group = mode_button_group
 	transition_mode_button.position = Vector2(10, 50)
 	add_child(transition_mode_button)
 	transition_mode_button.toggled.connect(_on_transition_mode_toggled)
 	
-	# Переменная для отслеживания режима
-	is_transition_mode_enabled = false
-	
 	#########################################
 # Добавляем кнопку для режима связывания
-	var connect_mode_button = Button.new()
+	var connect_mode_button = CheckButton.new()
 	connect_mode_button.text = "Connect Nodes"
 	connect_mode_button.toggle_mode = true
+	connect_mode_button.button_group = mode_button_group
 	connect_mode_button.position = Vector2(10, 100)
 	add_child(connect_mode_button)
 	connect_mode_button.toggled.connect(_on_connect_mode_toggled)
 	
-	# Переменная для отслеживания режима
-	is_connect_mode_enabled = false
+	# Добавляем кнопку для срабатывания перехода
+	fire_button = Button.new()
+	fire_button.text = "Fire Transition"
+	fire_button.position = Vector2(10, 150)
+	add_child(fire_button)
+	fire_button.pressed.connect(_on_fire_button_pressed)
+	
+	var normal_style = StyleBoxFlat.new()
+	normal_style.bg_color = Color.DARK_GRAY
+	
+	var hover_style = StyleBoxFlat.new()
+	hover_style.bg_color = Color.DARK_GRAY
+	
+	#Стилизация кнопок
+	place_mode_button.add_theme_stylebox_override("hover", hover_style)
+	transition_mode_button.add_theme_stylebox_override("hover", hover_style)
+	connect_mode_button.add_theme_stylebox_override("hover", hover_style)
+	
+	place_mode_button.add_theme_color_override("font_color", Color.WHITE)
+	transition_mode_button.add_theme_color_override("font_color", Color.WHITE)
+	connect_mode_button.add_theme_color_override("font_color", Color.WHITE)
+	
+
 
 func _on_place_mode_toggled(button_pressed: bool) -> void:
 	is_place_mode_enabled = button_pressed
+	if button_pressed:
+		is_transition_mode_enabled = false
+		is_connect_mode_enabled = false
+		selected_place = null
+		selected_transition = null
 
 func _on_transition_mode_toggled(button_pressed: bool) -> void:
 	is_transition_mode_enabled = button_pressed
+	if button_pressed:
+		is_place_mode_enabled = false
+		is_connect_mode_enabled = false
+		selected_place = null
+		selected_transition = null
 
 func _on_connect_mode_toggled(button_pressed: bool) -> void:
 	is_connect_mode_enabled = button_pressed
+	if button_pressed:
+		is_place_mode_enabled = false
+		is_transition_mode_enabled = false
+		selected_place = null
+		selected_transition = null
 
 func _create_place_at_position(position: Vector2) -> void:
 	var place: Place = PlaceScene.instantiate()
