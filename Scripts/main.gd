@@ -20,6 +20,8 @@ var is_connect_mode_enabled: bool = false
 var selected_place: Place = null
 var selected_transition: Transition = null
 
+var connections = []  # Список словарей с информацией о соединениях
+
 
 func _ready() -> void:
 	#########################################
@@ -115,12 +117,26 @@ func _unhandled_input(event) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 			var clicked_node = _get_node_at_position(event.position)
-			if is_place_mode_enabled:
-				_create_place_at_position(event.position)
-			elif is_transition_mode_enabled:
-				_create_transition_at_position(event.position)
-			elif is_connect_mode_enabled and clicked_node != null:
-				_handle_node_selection(clicked_node)
+			if clicked_node != null:
+				if is_connect_mode_enabled:
+					_handle_node_selection(clicked_node)
+				# Не создаем новый узел, если кликнули по существующему
+			else:
+				if is_place_mode_enabled:
+					_create_place_at_position(event.position)
+				elif is_transition_mode_enabled:
+					_create_transition_at_position(event.position)
+				elif is_connect_mode_enabled:
+					pass  # Ничего не делаем
+
+func update_connections() -> void:
+	print("update_connections() called")
+	for connection in connections:
+		var from_node = connection["from_node"]
+		var to_node = connection["to_node"]
+		var line = connection["line"]
+		line.set_point_position(0, from_node.global_position)
+		line.set_point_position(1, to_node.global_position)
 
 func _get_node_at_position(position: Vector2) -> Node:
 	var space_state = get_world_2d().direct_space_state

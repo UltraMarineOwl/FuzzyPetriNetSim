@@ -17,14 +17,14 @@ script = ExtResource("1_ptcfd")
 [node name="StaticBody2D" type="StaticBody2D" parent="."]
 disable_mode = 1
 
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
+shape = SubResource("CircleShape2D_6l4rf")
+
 [node name="Sprite2D" type="Sprite2D" parent="StaticBody2D"]
 light_mask = 2
 visibility_layer = 2
 scale = Vector2(0.84375, 0.828125)
 texture = ExtResource("2_plpli")
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
-shape = SubResource("CircleShape2D_6l4rf")
 
 [node name="Label" type="Label" parent="."]
 offset_left = -11.0
