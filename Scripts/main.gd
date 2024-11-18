@@ -19,6 +19,8 @@ var is_connect_mode_enabled: bool = false
 
 var selected_place: Place = null
 var selected_transition: Transition = null
+var selected_transition_to_fire: Transition = null
+var selected_node = null
 
 var connections = []  # Список словарей с информацией о соединениях
 
@@ -159,41 +161,84 @@ func _get_node_at_position(position: Vector2) -> Node:
 				return grandparent_node
 	return null
 	
+
+#func _handle_node_selection(node: Node) -> void:
+	#if node is Place:
+		#if selected_transition != null:
+			## Связываем переход и место
+			#selected_transition.output_places.append(node)
+			#_draw_connection(selected_transition, node)
+			## Сбрасываем выбор
+			#selected_transition = null
+			#print("Connected Transition to Place")
+		#else:
+			#selected_place = node
+			#print("Selected Place")
+	#elif node is Transition:
+		#if selected_place != null:
+			## Связываем место и переход
+			#node.input_places.append(selected_place)
+			#_draw_connection(selected_place, node) # Рисуется линии
+			## Сбрасываем выбор
+			#selected_place = null
+			#print("Connected Place to Transition")
+		#else:
+			#selected_transition = node
+			#print("Selected Transition")
+
 func _handle_node_selection(node: Node) -> void:
-	if node is Place:
-		if selected_transition != null:
-			# Связываем переход и место
-			selected_transition.output_places.append(node)
-			_draw_connection(selected_transition, node)
-			# Сбрасываем выбор
-			selected_transition = null
-			print("Connected Transition to Place")
-		else:
-			selected_place = node
-			print("Selected Place")
-	elif node is Transition:
-		if selected_place != null:
-			# Связываем место и переход
-			node.input_places.append(selected_place)
-			_draw_connection(selected_place, node) # Рисуется линии
-			# Сбрасываем выбор
-			selected_place = null
-			print("Connected Place to Transition")
-		else:
-			selected_transition = node
-			print("Selected Transition")
+	if selected_node == null:
+		selected_node = node
+		print("First node selected: ", node.name)
+	else:
+		# Соединяем два узла
+		_connect_nodes(selected_node, node)
+		# Устанавливаем соединение на узлах
+		selected_node.set_connected(true)
+		node.set_connected(true)
+		# Сбрасываем выбранный узел
+		selected_node = null
+		
+func _connect_nodes(node_a: Node, node_b: Node) -> void:
+	# Создаём соединение между узлами
+	_draw_connection(node_a, node_b)
+	# Обновляем списки входов и выходов для переходов и мест
+	if node_a is Place and node_b is Transition:
+		node_b.input_places.append(node_a)
+	elif node_a is Transition and node_b is Place:
+		node_a.output_places.append(node_b)
+	elif node_a is Place and node_b is Place:
+		# Если хотите поддерживать соединения между местами
+		pass
+	elif node_a is Transition and node_b is Transition:
+		# Если хотите поддерживать соединения между переходами
+		pass
+	else:
+		print("Unsupported connection type.")
 
 func _draw_connection(from_node: Node2D, to_node: Node2D) -> void:
 	var line = Line2D.new()
 	line.default_color = Color.WHITE
 	line.width = 2
-	line.add_point(from_node.position)
-	line.add_point(to_node.position)
+	line.add_point(from_node.global_position)
+	line.add_point(to_node.global_position)
 	connections_node.add_child(line)
 
-
 func _on_fire_button_pressed() -> void:
-	if selected_transition != null:
-		selected_transition.try_fire()
+	if selected_transition_to_fire != null:
+		selected_transition_to_fire.try_fire()
 	else:
 		print("No transition selected to fire.")
+
+
+func _on_start_simulation_pressed() -> void:
+	var simulation_active = true
+	while simulation_active:
+		simulation_active = false
+		for node in get_children():
+			if node is Transition:
+				var can_fire = node.try_fire()
+				if can_fire:
+					simulation_active = true
+		# Добавляем небольшую задержку для обновления интерфейса
+		#

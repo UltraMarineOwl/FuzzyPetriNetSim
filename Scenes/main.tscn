@@ -6,3 +6,13 @@
 script = ExtResource("1_awlv0")
 
 [node name="Connections" type="Node2D" parent="."]
+
+[node name="Start Simulation" type="Button" parent="."]
+offset_left = 502.0
+offset_top = 9.0
+offset_right = 635.0
+offset_bottom = 40.0
+text = "Start Simulation"
+icon_alignment = 1
+
+[connection signal="pressed" from="Start Simulation" to="." method="_on_start_simulation_pressed"]
