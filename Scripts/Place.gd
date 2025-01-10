@@ -2,6 +2,9 @@
 extends Node2D
 class_name Place
 
+var index: int = -1
+var element_name: String = ""  # Имя, типа "p1"
+
 var token_value: float = 0.0  # Значение метки (от 0.0 до 1.0)
 var is_dragging: bool = false
 var drag_offset: Vector2
@@ -12,8 +15,20 @@ var token_line_edit: LineEdit
 
 func _ready() -> void:
 	update_label()
+	_update_name_label()
 	if main == null:
 		main = get_parent()
+	
+
+func set_element_name(new_name: String) -> void:
+	element_name = new_name
+	_update_name_label()
+
+func _update_name_label() -> void:
+	# Ищем узел Label, который вы создали в сцене (NameLabel)
+	var label_node = $NameLabel
+	if label_node != null:
+		label_node.text = element_name
 
 func update_label() -> void:
 	$Label.text = "%.2f" % token_value
@@ -47,19 +62,55 @@ func _input(event: InputEvent) -> void:
 				_prompt_token_value()
 
 func _prompt_token_value() -> void:
-	var input_dialog = AcceptDialog.new()
-	input_dialog.title = "Enter token value (0.0 - 1.0):"
-	#input_dialog.resizable = false
+		# Создаём окно
+	var dialog = Window.new()
+	dialog.title = "Set token value"
+	dialog.size = Vector2(300, 100)
+
+	# Размещаем окно в центре экрана (необязательно, но удобно)
+	dialog.position = get_viewport().get_visible_rect().size * 0.5 - dialog.size * 0.5
+
+	# Создаём контейнер (VBoxContainer), чтобы вертикально расположить элементы
+	var vbox = VBoxContainer.new()
+	dialog.add_child(vbox)
+
+	# Добавляем заголовок-Label
+	var label_info = Label.new()
+	label_info.text = "Enter token value (0.0 - 1.0):"
+	vbox.add_child(label_info)
+
+	# Создаём LineEdit для ввода значения
+	var line_edit = LineEdit.new()
+	line_edit.text = str(token_value)  # Начальное значение - текущее
+	vbox.add_child(line_edit)
+
+	# Создаём кнопку "OK"
+	var button_ok = Button.new()
+	button_ok.text = "OK"
+	# Подключаем сигнал нажатия и передаём через bind() ссылку на диалог и line_edit
+	button_ok.pressed.connect(Callable(self, "_on_token_value_ok_pressed").bind(dialog, line_edit))
+	vbox.add_child(button_ok)
+
+	# Добавляем окно в сцену (Place.gd - обычно дочерний к main, но можно и get_tree().get_current_scene())
+	add_child(dialog)
+	dialog.popup()  # Отображаем окно поверх
+
+func _on_token_value_ok_pressed(dialog: Window, line_edit: LineEdit) -> void:
+	var text_value = line_edit.text
+	# Проверяем, является ли введённое значение корректным числом
+	if not text_value.is_valid_float():
+		print("Invalid input, please enter a float number.")
+		return
+
+	var new_value = text_value.to_float()
+	# Если вам нужно ограничить от 0.0 до 1.0:
+	new_value = clamp(new_value, 0.0, 1.0)
 	
-	token_line_edit = LineEdit.new()
-	token_line_edit.text = str(token_value)
-	#token_line_edit.margin_top = 10  # Добавим отступ сверху, если нужно
-	#token_line_edit.margin_bottom = 10  # Добавим отступ снизу, если нужно
-	
-	input_dialog.get_ok_button().connect("pressed", _on_token_value_confirmed)
-	#input_dialog.rect_size = Vector2(300, 100)
-	add_child(input_dialog)
-	input_dialog.popup_centered()
+	token_value = new_value
+	update_label()
+
+	# Закрываем окно
+	dialog.queue_free()
 
 func _on_token_value_confirmed(line_edit: LineEdit) -> void:
 	var text = token_line_edit.text

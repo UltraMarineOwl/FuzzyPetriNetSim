@@ -35,3 +35,9 @@ text = "0"
 label_settings = SubResource("LabelSettings_yu3sh")
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="NameLabel" type="Label" parent="."]
+offset_left = -11.0
+offset_top = 29.0
+offset_right = 12.0
+offset_bottom = 52.0

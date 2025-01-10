@@ -11,6 +11,7 @@ var place_mode_button: CheckButton
 var transition_mode_button: CheckButton
 var connect_mode_button: CheckButton
 var fire_button: Button  # Если необходимо
+var show_matrix: Button
 var mode_button_group: ButtonGroup = ButtonGroup.new()
 
 var is_place_mode_enabled: bool = false
@@ -23,6 +24,9 @@ var selected_transition_to_fire: Transition = null
 var selected_node = null
 
 var connections = []  # Список словарей с информацией о соединениях
+
+var places: Array[Place] = []
+var transitions: Array[Transition] = []
 
 
 func _ready() -> void:
@@ -62,6 +66,12 @@ func _ready() -> void:
 	fire_button.position = Vector2(10, 150)
 	add_child(fire_button)
 	fire_button.pressed.connect(_on_fire_button_pressed)
+	
+	show_matrix = Button.new()
+	show_matrix.text = "Show Matrix"
+	show_matrix.position = Vector2(10, 200)
+	add_child(show_matrix)
+	show_matrix.pressed.connect(_on_show_matrices_button_pressed)
 	
 	var normal_style = StyleBoxFlat.new()
 	normal_style.bg_color = Color.DARK_GRAY
@@ -106,14 +116,26 @@ func _on_connect_mode_toggled(button_pressed: bool) -> void:
 
 func _create_place_at_position(position: Vector2) -> void:
 	var place: Place = PlaceScene.instantiate()
-	add_child(place)
+	place.index = places.size()  # Индекс места = текущий размер массива
 	place.position = position
-	place.token_value = 0.0  # Начальное значение метки
+	
+	# Формируем название: p1, p2, p3 и т. д.
+	# Например: "p" + str(place.index + 1)
+	place.set_element_name("p" + str(place.index + 1))
+	add_child(place)
+	
+	#place.token_value = 0.0  # Начальное значение метки
+	places.append(place) #добавляю запись для места
 
 func _create_transition_at_position(position: Vector2) -> void:
 	var transition: Transition = TransitionScene.instantiate()
-	add_child(transition)
+	transition.index = transitions.size()
 	transition.position = position
+	
+	transition.set_element_name("t" + str(transition.index + 1))
+	add_child(transition)
+	
+	transitions.append(transition)
 
 func _unhandled_input(event) -> void:
 	if event is InputEventMouseButton:
@@ -201,28 +223,72 @@ func _handle_node_selection(node: Node) -> void:
 		
 func _connect_nodes(node_a: Node, node_b: Node) -> void:
 	# Создаём соединение между узлами
-	_draw_connection(node_a, node_b)
+	_draw_connection(node_a as Node2D, node_b as Node2D)
 	# Обновляем списки входов и выходов для переходов и мест
 	if node_a is Place and node_b is Transition:
+		# Добавляем в массивы (если у вас хранится Array для связей)
 		node_b.input_places.append(node_a)
+		# Записываем вес в словарь input_weights
+		node_b.add_input_place(node_a.index, 1.0)
+		
 	elif node_a is Transition and node_b is Place:
+		# Добавляем в массивы (если у вас хранится Array для связей)
 		node_a.output_places.append(node_b)
+		# Записываем вес в словарь output_weights
+		node_a.add_output_place(node_b.index, 1.0)
+		
 	elif node_a is Place and node_b is Place:
-		# Если хотите поддерживать соединения между местами
+		print("Connection between two places is not standard for Petri nets.")
 		pass
+		
 	elif node_a is Transition and node_b is Transition:
-		# Если хотите поддерживать соединения между переходами
+		print("Connection between two transitions is not standard for Petri nets.")
 		pass
+		
 	else:
 		print("Unsupported connection type.")
 
-func _draw_connection(from_node: Node2D, to_node: Node2D) -> void:
+func _draw_connection(a: Node2D, b: Node2D) -> void:
+	# 1) Создаём узел, который будет хранить всё, что связано со стрелкой
+	var arrow_node = Node2D.new()
+	add_child(arrow_node)  # Обычно добавляем в $Connections или под Main
+
+	# 2) Вычисляем глобальные координаты начала и конца
+	var start_pos = a.global_position
+	var end_pos = b.global_position
+
+	# 3) Создаём Line2D для основной линии
 	var line = Line2D.new()
-	line.default_color = Color.WHITE
-	line.width = 2
-	line.add_point(from_node.global_position)
-	line.add_point(to_node.global_position)
-	connections_node.add_child(line)
+	line.default_color = Color.WHITE  # Цвет линии
+	line.width = 2.0                 # Толщина
+	# Точки нужно добавлять в локальные координаты arrow_node,
+	# то есть конвертировать из глобальных:
+	line.add_point(arrow_node.to_local(start_pos))
+	line.add_point(arrow_node.to_local(end_pos))
+	
+	arrow_node.add_child(line)
+
+	# 4) Создаём Polygon2D для наконечника стрелки
+	var arrow_tip = Polygon2D.new()
+	# Простой треугольник в локальных координатах:
+	arrow_tip.polygon = [
+		Vector2(0, 0),
+		Vector2(-10, 10),
+		Vector2(-10, -10)
+	]
+	arrow_tip.color = Color.WHITE
+
+	# Ставим наконечник в конец стрелки
+	var arrow_factor = 0.8  # 0.5 означает ровно середину линии
+	var arrow_pos = start_pos + (end_pos - start_pos) * arrow_factor
+	arrow_tip.position = arrow_node.to_local(arrow_pos)
+
+
+	# Поворачиваем наконечник на угол, соответствующий вектору (end - start)
+	var direction = (end_pos - start_pos).angle()
+	arrow_tip.rotation = direction
+	
+	arrow_node.add_child(arrow_tip)
 
 func _on_fire_button_pressed() -> void:
 	if selected_transition_to_fire != null:
@@ -242,3 +308,127 @@ func _on_start_simulation_pressed() -> void:
 					simulation_active = true
 		# Добавляем небольшую задержку для обновления интерфейса
 		#
+
+
+#Fuzzy Logic Incidence
+func build_incidences() -> Dictionary:
+	var m: int = places.size()
+	var n: int = transitions.size()
+	
+	# Создаём матрицы Pre и Post размером m x n, заполненные нулями
+	var pre := []
+	var post := []
+	for i in range(n):
+		pre.append([])
+		post.append([])
+		for j in range(m):
+			pre[i].append(0.0)
+			post[i].append(0.0)
+
+# Заполняем
+	for i in range(n):
+		var t = transitions[i]
+		# Заполнение Pre
+		for place_index in t.input_weights.keys():
+			pre[i][place_index] = float(t.input_weights[place_index])
+		# Заполнение Post
+		for place_index in t.output_weights.keys():
+			post[i][place_index] = float(t.output_weights[place_index])
+	
+	print("places.size() = ", places.size(), " type=", typeof(places.size()))
+	print("transitions.size() = ", transitions.size(), " type=", typeof(transitions.size()))
+
+	return {
+		"pre": pre,
+		"post": post
+		}
+		
+
+func _on_show_matrices_button_pressed():
+	var incidences = build_incidences()
+	var pre_matrix = incidences["pre"]
+	var post_matrix = incidences["post"]
+	var matrix_window = Window.new()
+	matrix_window.title = "Incidence Matrices"
+	matrix_window.size = Vector2(400, 300)
+	matrix_window.position = get_viewport().get_visible_rect().size * 0.5 - matrix_window.size * 0.5
+
+	matrix_window.close_requested.connect(
+		Callable(self, "_on_matrix_window_close_requested").bind(matrix_window)
+		)
+
+	# Добавляем TabContainer, чтобы вывести Pre и Post на разных вкладках
+	var tab_container = TabContainer.new()
+	matrix_window.add_child(tab_container)
+
+	# Создаём вкладку для Pre
+	var pre_tab = _build_matrix_view(pre_matrix, "Pre")
+	tab_container.add_child(pre_tab)
+	var pre_idx = tab_container.get_tab_count() - 1
+	tab_container.set_tab_title(pre_idx, "Pre Matrix")
+	
+	# Создаём вкладку для Post
+	var post_tab = _build_matrix_view(post_matrix, "Post")
+	tab_container.add_child(post_tab)
+	var post_idx = tab_container.get_tab_count() - 1
+	tab_container.set_tab_title(post_idx, "Post Matrix")
+
+	# Добавляем окно в сцену
+	add_child(matrix_window)
+	matrix_window.popup()
+
+
+func _on_matrix_window_close_requested(window: Window) -> void:
+	# Закрываем (удаляем) окно
+	window.queue_free()
+	
+func _build_matrix_view(matrix: Array, matrix_name: String) -> Control:
+	# Предположим, matrix — это Array[Array[float]]
+	# Вычисляем размеры
+	var row_count = matrix.size()
+	var col_count = 0
+	if row_count > 0:
+		col_count = matrix[0].size()
+
+	# Создаём контейнер, который будет родителем GridContainer
+	var container = VBoxContainer.new()
+	container.name = matrix_name + "_Container"
+
+	# Добавим название или какую-то надпись
+	var label_title = Label.new()
+	label_title.text = matrix_name + " Matrix (" + str(row_count) + " x " + str(col_count) + ")"
+	label_title.theme_type_variation = "title"  # Для красоты, если хотите
+	container.add_child(label_title)
+
+	# GridContainer для ячеек
+	var grid = GridContainer.new()
+	grid.columns = col_count  # Устанавливаем число столбцов
+	container.add_child(grid)
+
+	# Проходим по строкам и столбцам
+	for i in range(row_count):
+		for j in range(col_count):
+			var cell_label = Label.new()
+			cell_label.text = str(matrix[i][j])  # Выводим вещественное значение
+			cell_label.autowrap_mode = 0
+			cell_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			cell_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			# Можно задать min_size или theme_override для оформления
+			grid.add_child(cell_label)
+	
+	return container
+
+#Этот связан с обновлением матрицы после изменений
+func _refresh_matrices_display():
+	var inc = build_incidences()
+	var pre = inc["pre"]
+	var post = inc["post"]
+
+	# Формируем строку
+	var text_str = "Pre matrix:\n"
+	for i in range(pre.size()):
+		text_str += str(pre[i]) + "\n"
+	
+	text_str += "\nPost matrix:\n"
+	for i in range(post.size()):
+		text_str += str(post[i]) + "\n"
