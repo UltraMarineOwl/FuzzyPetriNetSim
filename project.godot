@@ -15,6 +15,10 @@ run/main_scene="res://Scenes/main.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
 config/icon="res://icon.svg"
 
+[dotnet]
+
+project/assembly_name="FuzzyPetriNetSim"
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
