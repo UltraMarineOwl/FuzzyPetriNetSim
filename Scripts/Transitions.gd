@@ -41,7 +41,8 @@ func _update_name_label() -> void:
 		label_node.text = element_name
 
 func update_label():
-	$Label.text = "%.2f" % firing_threshold
+	if $Label:
+		$Label.text = str(firing_threshold)
 
 func add_input_place(place_index: int, weight: float = 1.0) -> void:
 	input_weights[place_index] = weight
@@ -120,7 +121,46 @@ func _input(event: InputEvent) -> void:
 			par._update_connections()
 
 func _change_firing_threshold() -> void:
-	firing_threshold = max(0.0, firing_threshold - 0.1)
+	#firing_threshold = max(0.0, firing_threshold - 0.1)
+	#update_label()
+	var dialog = Window.new()
+	dialog.title = "Set Firing Threshold for " + element_name
+	dialog.size = Vector2(300, 120)
+	dialog.position = get_viewport().get_visible_rect().size * 0.5 - dialog.size * 0.5
+	
+	var vbox = VBoxContainer.new()
+	dialog.add_child(vbox)
+	
+	var label_info = Label.new()
+	label_info.text = "Enter new threshold value (0.0 - 1.0):"
+	vbox.add_child(label_info)
+	
+	var line_edit = LineEdit.new()
+	line_edit.text = str(firing_threshold)  # текущее значение
+	vbox.add_child(line_edit)
+	
+	var ok_button = Button.new()
+	ok_button.text = "OK"
+	vbox.add_child(ok_button)
+	ok_button.pressed.connect(Callable(self, "_on_threshold_ok_pressed").bind(dialog, line_edit))
+	
+	add_child(dialog)
+	dialog.popup()
+
+func _on_threshold_ok_pressed(dialog: Window, line_edit: LineEdit) -> void:
+	var text_val = line_edit.text
+	if not text_val.is_valid_float():
+		print("Invalid input, please enter a float.")
+		return
+		
+	var new_val = text_val.to_float()
+	new_val = clamp(new_val, 0.0, 1.0)
+	firing_threshold = new_val
+	dialog.queue_free()
+	# Если у вас есть Label на самом переходе для отображения порога:
+	# update_display()
+	# Или что-то вроде _update_matrix_label()
+	print("Firing threshold updated to:", firing_threshold)
 	update_label()
 
 func _is_mouse_over(global_position: Vector2) -> bool:

@@ -12,6 +12,7 @@ var TransitionScene = preload("res://Scenes/Transitions.tscn")
 var place_mode_button: CheckButton
 var transition_mode_button: CheckButton
 var connect_mode_button: CheckButton
+var delete_mode_button: CheckButton
 var fire_button: Button  # Если необходимо
 var show_matrix: Button
 var save_button: Button
@@ -21,6 +22,7 @@ var mode_button_group: ButtonGroup = ButtonGroup.new()
 var is_place_mode_enabled: bool = false
 var is_transition_mode_enabled: bool = false
 var is_connect_mode_enabled: bool = false
+var is_delete_mode_enabled: bool = false
 
 var selected_place: Place = null
 var selected_transition: Transition = null
@@ -56,7 +58,7 @@ func _ready() -> void:
 	
 	#########################################
 # Добавляем кнопку для режима связывания
-	var connect_mode_button = CheckButton.new()
+	connect_mode_button = CheckButton.new()
 	connect_mode_button.text = "Connect Nodes"
 	connect_mode_button.toggle_mode = true
 	connect_mode_button.button_group = mode_button_group
@@ -64,16 +66,26 @@ func _ready() -> void:
 	add_child(connect_mode_button)
 	connect_mode_button.toggled.connect(_on_connect_mode_toggled)
 	
+		#########################################
+# Добавляем кнопку для режима связывания
+	delete_mode_button= CheckButton.new()
+	delete_mode_button.text = "Delete Nodes"
+	delete_mode_button.toggle_mode = true
+	delete_mode_button.button_group = mode_button_group
+	delete_mode_button.position = Vector2(10, 150)
+	add_child(delete_mode_button)
+	delete_mode_button.toggled.connect(_on_delete_button_toggled)
+	
 	# Добавляем кнопку для срабатывания перехода
 	fire_button = Button.new()
 	fire_button.text = "Fire Transition"
-	fire_button.position = Vector2(10, 150)
+	fire_button.position = Vector2(10, 200)
 	add_child(fire_button)
 	fire_button.pressed.connect(_on_fire_button_pressed)
 	
 	show_matrix = Button.new()
 	show_matrix.text = "Show Matrix"
-	show_matrix.position = Vector2(10, 200)
+	show_matrix.position = Vector2(10, 250)
 	add_child(show_matrix)
 	show_matrix.pressed.connect(_on_show_matrices_button_pressed)
 	
@@ -96,7 +108,7 @@ func _ready() -> void:
 	 # 1) Кнопка для сохранения
 	save_button = Button.new()
 	save_button.text = "Save Network"
-	save_button.position = Vector2(10, 250)
+	save_button.position = Vector2(10, 300)
 	add_child(save_button)
 	# Подключаем сигнал "pressed"
 	save_button.pressed.connect(_on_save_button_pressed)
@@ -104,7 +116,7 @@ func _ready() -> void:
 	# 2) Кнопка для загрузки
 	load_button = Button.new()
 	load_button.text = "Load Network"
-	load_button.position = Vector2(10, 300)
+	load_button.position = Vector2(10, 350)
 	add_child(load_button)
 	load_button.pressed.connect(_on_load_button_pressed)
 	
@@ -147,7 +159,42 @@ func _on_connect_mode_toggled(button_pressed: bool) -> void:
 		selected_place = null
 		selected_transition = null
 
+func _on_delete_button_toggled(button_pressed: bool) -> void:
+	is_delete_mode_enabled = button_pressed
+	if button_pressed:
+		is_delete_mode_enabled = true
+		is_place_mode_enabled = false
+		is_transition_mode_enabled = false
+		is_connect_mode_enabled = false
+
 func _create_place_at_position(position: Vector2) -> Place:
+	
+	## 1) Ищем свободный слот
+	#var free_slot = -1
+	#for i in range(places.size()):
+		#if places[i] == null:
+			#free_slot = i
+			#break
+	#
+	## 2) Создаем объект
+	#var place = PlaceScene.instantiate()
+	#
+	#if free_slot == -1:
+		## Не нашли null => добавляем в конец
+		#place.index = places.size()
+		#places.append(place)
+	#else:
+		## нашелся свободный слот => place.index = free_slot
+		#place.index = free_slot
+		#places[free_slot] = place  # заменяем null на новый объект
+#
+	## 3) Далее стандартные действия
+	#place.position = position
+	#place.element_name = "p" + str(place.index + 1)
+	#add_child(place)
+	## place.update_display() или что вам нужно
+	#return place
+	
 	var place: Place = PlaceScene.instantiate()
 	place.index = places.size()  # Индекс места = текущий размер массива
 	place.position = position
@@ -177,6 +224,7 @@ func _unhandled_input(event) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 			var clicked_node = _get_node_at_position(event.position)
+			
 			if clicked_node != null:
 				if is_connect_mode_enabled:
 					_handle_node_selection(clicked_node)
@@ -188,6 +236,14 @@ func _unhandled_input(event) -> void:
 					_create_transition_at_position(event.position)
 				elif is_connect_mode_enabled:
 					pass  # Ничего не делаем
+		if event is InputEventMouseButton:
+			if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+				var mouse_pos = event.position
+				if is_delete_mode_enabled:
+					var node = _get_node_at_position(mouse_pos)
+					if node != null:
+						_delete_node(node)
+					return
 
 func update_connections() -> void:
 	print("update_connections() called")
@@ -342,9 +398,45 @@ func _on_start_simulation_pressed() -> void:
 				var can_fire = node.try_fire()
 				if can_fire:
 					simulation_active = true
-		# Добавляем небольшую задержку для обновления интерфейса
-		#
 
+func _delete_node(node: Node) -> void:
+	if node is Place:
+		# Удаляем из массива places
+		places.erase(node)
+		# Удаляем все связи, где этот place участвует
+		_remove_place_from_transitions(node)
+		node.queue_free()
+# Optionally - если рисуем связи заново, вызовем _update_connections()
+		_update_connections()
+	elif node is Transition:
+		transitions.erase(node)
+		# Удаляем связи, где этот transition участвует
+		#_remove_transition_references(node)
+		node.queue_free()
+		_update_connections()
+
+func _remove_place_from_transitions(place: Place) -> void:
+	for t in transitions:
+		if place.index in t.input_weights:
+			t.input_weights.erase(place.index)
+		if place.index in t.output_weights:
+			t.output_weights.erase(place.index)
+		if place in t.input_places:
+			t.input_places.erase(place)
+		if place in t.output_places:
+			t.output_places.erase(place)
+	var i = places.find(place)
+	if i >= 0:
+		places[i] = null
+	place.queue_free()
+	_update_connections()
+
+func _delete_transition(tr: Transition) -> void:
+	# Убираем этот переход из массива transitions
+	transitions.erase(tr)
+	tr.queue_free()
+	# Перерисовываем связи
+	_update_connections()
 
 #Fuzzy Logic Incidence
 func build_incidences() -> Dictionary:
@@ -496,7 +588,8 @@ func save_network(file_path: String):
 			"input_weights": {},
 			"output_weights": {}
 		}
-
+		
+		data["transitions"].append(transition_dict)
 		# Преобразуем словари input_weights и output_weights в Dict[str->float]
 		var in_w = {}
 		for place_idx in transition.input_weights.keys():
