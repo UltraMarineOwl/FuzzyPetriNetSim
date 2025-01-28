@@ -391,13 +391,19 @@ func _on_fire_button_pressed() -> void:
 
 func _on_start_simulation_pressed() -> void:
 	var simulation_active = true
+	#while simulation_active:
+		#simulation_active = false
+		#for node in get_children():
+			#if node is Transition:
+				#var can_fire = node.try_fire()
+				#if can_fire:
+					#simulation_active = true
 	while simulation_active:
 		simulation_active = false
-		for node in get_children():
-			if node is Transition:
-				var can_fire = node.try_fire()
-				if can_fire:
-					simulation_active = true
+	for t in transitions:
+		if t.try_fire():
+			t.fire_transition()
+			simulation_active = true
 
 func _delete_node(node: Node) -> void:
 	if node is Place:
