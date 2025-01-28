@@ -5,6 +5,8 @@ var PlaceScene = preload("res://Scenes/Place.tscn")
 var TransitionScene = preload("res://Scenes/Transitions.tscn")
 
 @onready var connections_node: Node2D = $Connections
+@onready var file_dialog_save: FileDialog = FileDialog.new()
+@onready var file_dialog_load: FileDialog = FileDialog.new()
 
 # Переменные для кнопок режимов
 var place_mode_button: CheckButton
@@ -12,6 +14,8 @@ var transition_mode_button: CheckButton
 var connect_mode_button: CheckButton
 var fire_button: Button  # Если необходимо
 var show_matrix: Button
+var save_button: Button
+var load_button: Button
 var mode_button_group: ButtonGroup = ButtonGroup.new()
 
 var is_place_mode_enabled: bool = false
@@ -73,6 +77,37 @@ func _ready() -> void:
 	add_child(show_matrix)
 	show_matrix.pressed.connect(_on_show_matrices_button_pressed)
 	
+		#Saving system
+	# Создаем и настраиваем FileDialog для сохранения
+	file_dialog_save.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+	file_dialog_save.filters = ["*.json ; JSON files"]
+	file_dialog_save.access = FileDialog.ACCESS_USERDATA
+	add_child(file_dialog_save)
+	file_dialog_save.file_selected.connect(_on_file_save_selected)
+
+	# Создаем и настраиваем FileDialog для загрузки
+	file_dialog_load.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	file_dialog_load.filters = ["*.json ; JSON files"]
+	file_dialog_load.access = FileDialog.ACCESS_USERDATA
+	add_child(file_dialog_load)
+	file_dialog_load.file_selected.connect(_on_file_load_selected)
+		
+		
+	 # 1) Кнопка для сохранения
+	save_button = Button.new()
+	save_button.text = "Save Network"
+	save_button.position = Vector2(10, 250)
+	add_child(save_button)
+	# Подключаем сигнал "pressed"
+	save_button.pressed.connect(_on_save_button_pressed)
+
+	# 2) Кнопка для загрузки
+	load_button = Button.new()
+	load_button.text = "Load Network"
+	load_button.position = Vector2(10, 300)
+	add_child(load_button)
+	load_button.pressed.connect(_on_load_button_pressed)
+	
 	var normal_style = StyleBoxFlat.new()
 	normal_style.bg_color = Color.DARK_GRAY
 	
@@ -88,8 +123,6 @@ func _ready() -> void:
 	transition_mode_button.add_theme_color_override("font_color", Color.WHITE)
 	connect_mode_button.add_theme_color_override("font_color", Color.WHITE)
 	
-
-
 func _on_place_mode_toggled(button_pressed: bool) -> void:
 	is_place_mode_enabled = button_pressed
 	if button_pressed:
@@ -114,7 +147,7 @@ func _on_connect_mode_toggled(button_pressed: bool) -> void:
 		selected_place = null
 		selected_transition = null
 
-func _create_place_at_position(position: Vector2) -> void:
+func _create_place_at_position(position: Vector2) -> Place:
 	var place: Place = PlaceScene.instantiate()
 	place.index = places.size()  # Индекс места = текущий размер массива
 	place.position = position
@@ -126,8 +159,9 @@ func _create_place_at_position(position: Vector2) -> void:
 	
 	#place.token_value = 0.0  # Начальное значение метки
 	places.append(place) #добавляю запись для места
+	return place
 
-func _create_transition_at_position(position: Vector2) -> void:
+func _create_transition_at_position(position: Vector2) -> Transition:
 	var transition: Transition = TransitionScene.instantiate()
 	transition.index = transitions.size()
 	transition.position = position
@@ -136,6 +170,8 @@ func _create_transition_at_position(position: Vector2) -> void:
 	add_child(transition)
 	
 	transitions.append(transition)
+	return transition
+
 
 func _unhandled_input(event) -> void:
 	if event is InputEventMouseButton:
@@ -183,31 +219,6 @@ func _get_node_at_position(position: Vector2) -> Node:
 				return grandparent_node
 	return null
 	
-
-#func _handle_node_selection(node: Node) -> void:
-	#if node is Place:
-		#if selected_transition != null:
-			## Связываем переход и место
-			#selected_transition.output_places.append(node)
-			#_draw_connection(selected_transition, node)
-			## Сбрасываем выбор
-			#selected_transition = null
-			#print("Connected Transition to Place")
-		#else:
-			#selected_place = node
-			#print("Selected Place")
-	#elif node is Transition:
-		#if selected_place != null:
-			## Связываем место и переход
-			#node.input_places.append(selected_place)
-			#_draw_connection(selected_place, node) # Рисуется линии
-			## Сбрасываем выбор
-			#selected_place = null
-			#print("Connected Place to Transition")
-		#else:
-			#selected_transition = node
-			#print("Selected Transition")
-
 func _handle_node_selection(node: Node) -> void:
 	if selected_node == null:
 		selected_node = node
@@ -248,10 +259,35 @@ func _connect_nodes(node_a: Node, node_b: Node) -> void:
 	else:
 		print("Unsupported connection type.")
 
+func _connect_nodes_load(a: Node2D, b: Node2D, is_input: bool) -> void:
+	# Предположим, a - Place, b - Transition, и is_input=true => (Place -> Transition)
+	# Иначе (Transition -> Place).
+	if a is Place and b is Transition and is_input:
+		var place = a
+		var trans = b
+		# Добавляем в trans.input_places
+		if not trans.input_places.has(place):
+			trans.input_places.append(place)
+		# Установим weight, если нужно (вдруг 1.0 по умолчанию)
+		if not trans.input_weights.has(place.index):
+			trans.input_weights[place.index] = 1.0
+		# Рисуем стрелку
+		_draw_connection(place, trans)
+	
+	elif a is Transition and b is Place and not is_input:
+		var trans = a
+		var place = b
+		if not trans.output_places.has(place):
+			trans.output_places.append(place)
+		if not trans.output_weights.has(place.index):
+			trans.output_weights[place.index] = 1.0
+		_draw_connection(trans, place)
+
 func _draw_connection(a: Node2D, b: Node2D) -> void:
 	# 1) Создаём узел, который будет хранить всё, что связано со стрелкой
 	var arrow_node = Node2D.new()
 	add_child(arrow_node)  # Обычно добавляем в $Connections или под Main
+	arrow_node.add_to_group("connections")  # Группа "connections"
 
 	# 2) Вычисляем глобальные координаты начала и конца
 	var start_pos = a.global_position
@@ -432,3 +468,214 @@ func _refresh_matrices_display():
 	text_str += "\nPost matrix:\n"
 	for i in range(post.size()):
 		text_str += str(post[i]) + "\n"
+
+#@#############################Saving system code#####################################
+func save_network(file_path: String):
+	var data = {
+		"places": [],
+		"transitions": []
+	}
+
+	# Собираем данные о местах
+	for place in places:
+		var place_dict = {
+			"index": place.index,
+			"position": [place.position.x, place.position.y],
+			"token_value": place.token_value,
+			"element_name": place.element_name
+		}
+		data["places"].append(place_dict)
+
+	# Собираем данные о переходах
+	for transition in transitions:
+		var transition_dict = {
+			"index": transition.index,
+			"position": [transition.position.x, transition.position.y],
+			"firing_threshold": transition.firing_threshold,
+			"element_name": transition.element_name,
+			"input_weights": {},
+			"output_weights": {}
+		}
+
+		# Преобразуем словари input_weights и output_weights в Dict[str->float]
+		var in_w = {}
+		for place_idx in transition.input_weights.keys():
+			in_w[str(place_idx)] = transition.input_weights[place_idx]
+		
+		var out_w = {}
+		for place_idx in transition.output_weights.keys():
+			out_w[str(place_idx)] = transition.output_weights[place_idx]
+			
+		transition_dict["input_weights"] = in_w
+		transition_dict["output_weights"] = out_w
+		
+		data["transitions"].append(transition_dict)
+
+	# Превращаем data в JSON
+	var json_str = JSON.stringify(data, "  ")  # второй аргумент - отступ (не обязательно)
+	
+	var file = FileAccess.open(file_path, FileAccess.ModeFlags.WRITE)
+	if file:
+		file.store_string(json_str)
+		file.close()
+		print("Network saved to: ", file_path)
+	else:
+		print("Cannot open file for writing: ", file_path)
+
+func load_network(file_path: String) -> void:
+	var file = FileAccess.open(file_path, FileAccess.ModeFlags.READ)
+	if file == null:
+		print("Cannot open file for reading: ", file_path)
+		return
+		
+	var json_str = file.get_as_text()
+	file.close()
+	
+	var parser = JSON.new()
+	# parse(...) вернёт int (код ошибки), а не JSONParseResult
+	var error_code = parser.parse(json_str)
+	if error_code != OK:
+		# Выводим сообщение об ошибке через parser.get_error_message()
+		var err_msg = parser.get_error_message()
+		var err_line = parser.get_error_line()
+		print("JSON parse error at line ", err_line, ": ", err_msg)
+		return
+		
+	var data = parser.get_data()
+	if not data.has("places") or not data.has("transitions"):
+		print("Invalid file format: no 'places' or 'transitions'")
+		return
+
+	# Удаляем все текущие элементы
+	# Это значит: очистить массив places, transitions, возможно удалить из сцены...
+	_clear_network()
+
+	# Загружаем places
+	for place_dict in data["places"]:
+		var p = _create_place_at_position(Vector2(
+			place_dict["position"][0],
+			place_dict["position"][1]
+		))
+		p.index = place_dict["index"]
+		p.token_value = place_dict["token_value"]
+		p.element_name = place_dict["element_name"]
+
+	# Загружаем массив transitions
+	for t_dict in data["transitions"]:
+		var t = _create_transition_at_position(Vector2(
+			t_dict["position"][0],
+			t_dict["position"][1]
+			))
+		t.index = t_dict["index"]
+		t.firing_threshold = t_dict["firing_threshold"]
+		t.element_name = t_dict["element_name"]
+
+		# Восстанавливаем input_weights/ output_weights
+		var in_w_dict = t_dict["input_weights"]
+		for k in in_w_dict.keys():
+			var place_idx = int(k)
+			var w = float(in_w_dict[k])
+			t.input_weights[place_idx] = w
+			if w != 0.0:   # Если вы храните нулевые => игнор?
+				# Сформируем связь и массив input_places
+				t.input_places.append(places[place_idx])
+		
+		var out_w_dict = t_dict["output_weights"]
+		for k in out_w_dict.keys():
+			var place_idx = int(k)
+			var w = float(out_w_dict[k])
+			t.output_weights[place_idx] = w
+			if w != 0.0:
+				t.output_places.append(places[place_idx])
+
+	_rebuild_connections_after_load()
+	
+	for p in places:
+		p.update_label()
+		p._update_name_label()
+	for tr in transitions:
+		tr.update_label()
+		tr._update_name_label()
+		tr._update_matrix_label()
+	
+	print("Network loaded from: ", file_path)
+
+func _rebuild_connections():
+	for transition in transitions:
+		for place_idx in transition.input_weights.keys():
+			if transition.input_weights[place_idx] != 0.0:
+				var place = places[place_idx]
+				# Вместо прямого _draw_connection мы вызываем _connect_nodes, 
+				# который делает и визуальное, и логическое соединение
+				_connect_nodes_load(place, transition, true)
+		for place_idx in transition.output_weights.keys():
+			if transition.output_weights[place_idx] != 0.0:
+				var place = places[place_idx]
+				_connect_nodes_load(place, transition, false)
+
+func _rebuild_connections_after_load():
+	# Удаляем (или не удаляем) старые линии, если у вас они были отдельно
+	# Если вы храните массив connections, почистите его, queue_free() и т.д.
+	var connections_node = $Connections
+	for child in connections_node.get_children():
+		child.queue_free()
+	# Проходим по каждому переходу
+	for t in transitions:
+		# Для каждого места, указанного как вход (в t.input_weights)
+		for place_idx in t.input_weights.keys():
+			var w = t.input_weights[place_idx]
+			if w != 0.0:
+				# Находим место
+				var p = places[place_idx]
+				# Вызываем метод, который делает "реальное" подключение: place -> transition
+				_connect_nodes_load(p, t, true)
+
+		# Для каждого места, указанного как выход (в t.output_weights)
+		for place_idx in t.output_weights.keys():
+			var w = t.output_weights[place_idx]
+			if w != 0.0:
+				var p = places[place_idx]
+				_connect_nodes_load(t, p, false)
+
+func _clear_network() -> void:
+	# Удаляем все места (очищаем массив places)
+	for p in places:
+		p.queue_free()
+	places.clear()
+
+	# Удаляем все переходы (очищаем массив transitions)
+	for t in transitions:
+		t.queue_free()
+	transitions.clear()
+	
+	var con_nodes = get_tree().get_nodes_in_group("connections")
+	for c in con_nodes:
+		c.queue_free()
+	
+func _on_save_button_pressed() -> void:
+	file_dialog_save.popup()
+
+func _on_file_save_selected(file_path: String) -> void:
+	save_network(file_path)
+
+func _on_load_button_pressed() -> void:
+	file_dialog_load.popup()
+
+func _on_file_load_selected(file_path: String) -> void:
+	load_network(file_path)
+
+#Update connections
+func _update_connections() -> void:
+	# Удалить старые линии
+	var con_nodes = get_tree().get_nodes_in_group("connections")
+	for c in con_nodes:
+		c.queue_free()
+	# Пройти по всем transitions, для каждого input_weights => (place -> transition),
+	# output_weights => (transition -> place). Вызываем _draw_connection
+	for t in transitions:
+		for place_idx in t.input_weights.keys():
+			if t.input_weights[place_idx] != 0.0:
+				_draw_connection(places[place_idx], t)
+		for place_idx in t.output_weights.keys():
+			if t.output_weights[place_idx] != 0.0:
+				_draw_connection(t, places[place_idx])

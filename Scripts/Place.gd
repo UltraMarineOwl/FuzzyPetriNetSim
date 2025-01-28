@@ -40,7 +40,6 @@ func _input(event: InputEvent) -> void:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			var mouse_pos = get_global_mouse_position()
 			if event.pressed and _is_mouse_over(mouse_pos):
-				_change_token_value()
 				is_dragging = true
 				drag_offset = position - mouse_pos
 			elif not event.pressed:
@@ -57,9 +56,16 @@ func _input(event: InputEvent) -> void:
 				_change_token_value()
 	if event is InputEventMouseButton and event.double_click:
 		if event.button_index == MOUSE_BUTTON_LEFT:
+			is_dragging = false
 			var mouse_pos = get_global_mouse_position()
 			if _is_mouse_over(mouse_pos):
 				_prompt_token_value()
+	if event is InputEventMouseMotion and is_dragging:
+		position = get_global_mouse_position() + drag_offset
+		# После изменения позиции, перерисовать линии
+		var par = get_parent()
+		if par != null and par.has_method("_update_connections"):
+			par._update_connections()
 
 func _prompt_token_value() -> void:
 		# Создаём окно

@@ -112,6 +112,12 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion and is_dragging:
 		position = get_global_mouse_position() + drag_offset
 		_update_connections()
+	if event is InputEventMouseMotion and is_dragging:
+		position = get_global_mouse_position() + drag_offset
+		# После изменения позиции, перерисовать линии
+		var par = get_parent()
+		if par != null and par.has_method("_update_connections"):
+			par._update_connections()
 
 func _change_firing_threshold() -> void:
 	firing_threshold = max(0.0, firing_threshold - 0.1)
