@@ -168,33 +168,7 @@ func _on_delete_button_toggled(button_pressed: bool) -> void:
 		is_connect_mode_enabled = false
 
 func _create_place_at_position(position: Vector2) -> Place:
-	
-	## 1) Ищем свободный слот
-	#var free_slot = -1
-	#for i in range(places.size()):
-		#if places[i] == null:
-			#free_slot = i
-			#break
-	#
-	## 2) Создаем объект
-	#var place = PlaceScene.instantiate()
-	#
-	#if free_slot == -1:
-		## Не нашли null => добавляем в конец
-		#place.index = places.size()
-		#places.append(place)
-	#else:
-		## нашелся свободный слот => place.index = free_slot
-		#place.index = free_slot
-		#places[free_slot] = place  # заменяем null на новый объект
-#
-	## 3) Далее стандартные действия
-	#place.position = position
-	#place.element_name = "p" + str(place.index + 1)
-	#add_child(place)
-	## place.update_display() или что вам нужно
-	#return place
-	
+	print("Creating place at position:", position)
 	var place: Place = PlaceScene.instantiate()
 	place.index = places.size()  # Индекс места = текущий размер массива
 	place.position = position
@@ -209,6 +183,7 @@ func _create_place_at_position(position: Vector2) -> Place:
 	return place
 
 func _create_transition_at_position(position: Vector2) -> Transition:
+	print("Creating transition at position:", position)
 	var transition: Transition = TransitionScene.instantiate()
 	transition.index = transitions.size()
 	transition.position = position
@@ -391,13 +366,6 @@ func _on_fire_button_pressed() -> void:
 
 func _on_start_simulation_pressed() -> void:
 	var simulation_active = true
-	#while simulation_active:
-		#simulation_active = false
-		#for node in get_children():
-			#if node is Transition:
-				#var can_fire = node.try_fire()
-				#if can_fire:
-					#simulation_active = true
 	while simulation_active:
 		simulation_active = false
 	for t in transitions:
@@ -607,8 +575,6 @@ func save_network(file_path: String):
 			
 		transition_dict["input_weights"] = in_w
 		transition_dict["output_weights"] = out_w
-		
-		data["transitions"].append(transition_dict)
 
 	# Превращаем data в JSON
 	var json_str = JSON.stringify(data, "  ")  # второй аргумент - отступ (не обязательно)
@@ -686,7 +652,7 @@ func load_network(file_path: String) -> void:
 			t.output_weights[place_idx] = w
 			if w != 0.0:
 				t.output_places.append(places[place_idx])
-
+	#auto_detect_logic()
 	_rebuild_connections_after_load()
 	
 	for p in places:
@@ -698,19 +664,6 @@ func load_network(file_path: String) -> void:
 		tr._update_matrix_label()
 	
 	print("Network loaded from: ", file_path)
-
-func _rebuild_connections():
-	for transition in transitions:
-		for place_idx in transition.input_weights.keys():
-			if transition.input_weights[place_idx] != 0.0:
-				var place = places[place_idx]
-				# Вместо прямого _draw_connection мы вызываем _connect_nodes, 
-				# который делает и визуальное, и логическое соединение
-				_connect_nodes_load(place, transition, true)
-		for place_idx in transition.output_weights.keys():
-			if transition.output_weights[place_idx] != 0.0:
-				var place = places[place_idx]
-				_connect_nodes_load(place, transition, false)
 
 func _rebuild_connections_after_load():
 	# Удаляем (или не удаляем) старые линии, если у вас они были отдельно
@@ -778,3 +731,26 @@ func _update_connections() -> void:
 		for place_idx in t.output_weights.keys():
 			if t.output_weights[place_idx] != 0.0:
 				_draw_connection(t, places[place_idx])
+
+func auto_detect_logic():
+	# 1) Собираем, какие переходы пишут в какое место
+	var place_incomings = {}  # place_idx -> Array of Transition
+	for t in transitions:
+		for place_idx in t.output_weights.keys():
+			if not place_incomings.has(place_idx):
+				place_incomings[place_idx] = []
+			place_incomings[place_idx].append(t)
+
+	# 2) Для каждого place_idx проверяем, сколько переходов в него ведёт
+	for place_idx in place_incomings.keys():
+		var trans_list = place_incomings[place_idx]
+		if trans_list.size() > 1:
+			# Если более одного перехода ведёт к place_idx,
+			# полагаем, что это "OR"
+			for tr in trans_list:
+				tr.logic_type = "OR"
+		else:
+			# Иначе, если ровно один переход => "AND"
+			# (или оставляем без изменений, если уже назначено)
+			for tr in trans_list:
+				tr.logic_type = "AND"

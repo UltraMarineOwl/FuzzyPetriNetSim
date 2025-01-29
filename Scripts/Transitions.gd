@@ -9,6 +9,8 @@ var element_name: String = ""
 var input_weights: Dictionary = {}
 var output_weights: Dictionary = {}
 
+var logic_type: String = "AND"
+
 # Пример: input_weights[2] = 1.0 означает, что для места с index=2 нужен вес 1.0
 #         output_weights[5] = 0.5 означает, что место с index=5 получит 0.5
 
@@ -20,6 +22,16 @@ var is_dragging: bool = false
 var drag_offset: Vector2
 var main
 var is_connected: bool = false
+
+# 1) Данные для логики AND
+var and_outgoing_value: float = 1.0    # общий u, если нужно (можно не использовать, если не нужно)
+
+# 2) Данные для логики OR
+var or_weights: Dictionary = {}        # { place_idx -> float (u_i) }
+var or_thresholds: Dictionary = {}     # { place_idx -> float (t_i) }
+var or_output_place: int = -1          # индекс локации, куда пишем max a_i (если только одна цель)
+
+var _fire_value: float = 0.0
 
 func _ready():
 	update_label()
@@ -50,64 +62,33 @@ func add_input_place(place_index: int, weight: float = 1.0) -> void:
 func add_output_place(place_index: int, weight: float = 1.0) -> void:
 	output_weights[place_index] = weight
 
-func try_fire():
-	#var min_token_value = 1.0
-	#for place in input_places:
-		#min_token_value = min(min_token_value, place.token_value)
-		#
-	#if min_token_value >= firing_threshold:
-		#fire_transition(min_token_value)
-		#return true
-	#else:
-		#return false
-	print("try_fire called, this = ", self.name)
-	var sum_input = 0.0
-	# Предположим, у нас есть input_weights и main.places
-	for place_idx in input_weights.keys():
-		var w = input_weights[place_idx]
-		var p = main.places[place_idx]  # place
-		sum_input += p.token_value * w
+func try_fire() -> bool:
+	if main == null:
+		print("No 'main' found for transition", self.name)
+		return false
+	
+	match logic_type:
+		"AND":
+			return _try_fire_and()
+		"OR":
+			return _try_fire_or()
+		_:
+			print("Unknown logic_type:", logic_type)
+			return false
 
-	# Проверка формулы (p1*w1 + ... + pm*wm)*u >= threshold
-	# Если sum_input >= firing_threshold => переход активен
-	return sum_input >= firing_threshold
+	
 
 func fire_transition() -> void:
-	## Обновляем значения меток
-	#for place in input_places:
-		#place.token_value = max(0.0, place.token_value - token_amount)
-		#place.update_label()
-	#for place in output_places:
-		#place.token_value = min(1.0, place.token_value + token_amount)
-		#place.update_label()
-	#print("Transition fired with token amount: ", token_amount)
-	print("fire_transition called, this = ", self.name)
-	var sum_input  = 0.0
-	for place_idx in input_weights.keys():
-		var w_in = input_weights[place_idx]
-		var p_in = main.places[place_idx]
-		sum_input  += p_in.token_value * w_in
-
-	# Обнулим входные места
-	for place_idx in input_weights.keys():
-		var p_in = main.places[place_idx]
-		p_in.token_value = 0.0
-		p_in.update_label()
-		p_in._update_name_label()
-
-	# Распределим на выход
-	var total_u = 0.0
-	for place_idx in output_weights.keys():
-		total_u += output_weights[place_idx]
-	
-	if total_u > 0.0:
-		for place_idx in output_weights.keys():
-			var u = output_weights[place_idx]
-			var p_out = main.places[place_idx]
-			var portion = u * sum_input
-			p_out.token_value = min(1.0, p_out.token_value + portion)
-			p_out.update_label()
-			p_out._update_name_label()
+	if main == null:
+		print("No 'main' found for transition", self.name)
+		return
+	match logic_type:
+		"AND":
+			_fire_transition_and()
+		"OR":
+			_fire_transition_or()
+		_:
+			print("Unknown logic_type:", logic_type)
 
 func _input(event: InputEvent) -> void:
 	if main != null and main.is_connect_mode_enabled:
@@ -161,6 +142,7 @@ func _input(event: InputEvent) -> void:
 func _change_firing_threshold() -> void:
 	#firing_threshold = max(0.0, firing_threshold - 0.1)
 	#update_label()
+	print("Prompt threshold called")
 	var dialog = Window.new()
 	dialog.title = "Set Firing Threshold for " + element_name
 	dialog.size = Vector2(300, 120)
@@ -378,3 +360,111 @@ func array_join(arr: Array, sep: String) -> String:
 		if i < arr.size() - 1:
 			result += sep
 	return result
+
+######################TEsting logic synergy
+func _try_fire_and() -> bool:
+	var sum_input = 0.0
+	for place_idx in input_weights.keys():
+		var w = input_weights[place_idx]
+		if place_idx >= 0 and place_idx < main.places.size():
+			var place = main.places[place_idx]
+			if place != null:
+				sum_input += place.token_value * w
+	
+	var check_value = sum_input * and_outgoing_value
+	if check_value >= firing_threshold:
+		# Сохраним в _fire_value, чтобы fire_transition() знал, что распространять
+		_fire_value = check_value
+		return true
+	return false
+
+func _fire_transition_and() -> void:
+	# 1) "Сжигаем" входные места (пример: обнуляем)
+	for place_idx in input_weights.keys():
+		if place_idx >= 0 and place_idx < main.places.size():
+			var p_in = main.places[place_idx]
+			if p_in != null:
+				p_in.token_value = 0.0
+				p_in.update_label()
+				p_in._update_name_label()
+
+	# 2) Распределяем _fire_value по выходам (пример пропорционально output_weights)
+	var total_w = 0.0
+	for place_idx in output_weights.keys():
+		total_w += output_weights[place_idx]
+	
+	if total_w > 0.0:
+		for place_idx in output_weights.keys():
+			var w = output_weights[place_idx]
+			var p_out = main.places[place_idx]
+			if p_out != null:
+				var portion = (_fire_value * w)
+				print("And:", portion)
+				p_out.token_value = clamp(p_out.token_value + portion, 0.0, 1.0)
+				p_out.update_label()
+				p_out._update_name_label()
+
+	# Можно вызывать _update_connections() если требуется пересчитать линии
+	if main.has_method("_update_connections"):
+		main._update_connections()
+
+#
+# Вариант OR
+# Для каждого входа i: a_i = p_i * or_weights[i], сравниваем a_i >= or_thresholds[i].
+# Если хотя бы одно >=, берем max a_i.
+#
+func _try_fire_or() -> bool:
+	var any_passed = false
+	var max_a = -99999.0
+	for place_idx in or_weights.keys():
+		if not or_thresholds.has(place_idx):
+			continue
+
+		var u_i = or_weights[place_idx]
+		var t_i = or_thresholds[place_idx]
+		# Достаём объект локации из main.places
+		if place_idx < 0 or place_idx >= main.places.size():
+			continue  # индекс невалиден
+		var place = main.places[place_idx]
+		if place == null:
+			continue  # место удалено?
+
+		# Вычисляем a_i = p_i * u_i
+		var p_i = place.token_value
+		var a_i = p_i * u_i
+
+		# Проверяем, проходит ли порог
+		if a_i >= t_i:
+			any_passed = true
+			if a_i > max_a:
+				max_a = a_i
+	# Если никто не достиг порога, возвращаем false
+	if not any_passed:
+		return false
+
+	# Если хотя бы одно a_i >= t_i, max_a хранит максимальноe a_i
+	_fire_value = max_a
+	return true
+
+func _fire_transition_or() -> void:
+	# _fire_value хранит максимум из _try_fire_or()
+	var final_val = _fire_value
+	print("OR : ", final_val)
+
+	# Предположим, пишем результат в одну локацию or_output_place
+	if or_output_place < 0 or or_output_place >= main.places.size():
+		# Если выходная локация невалидна, ничего не делаем
+		return
+	
+	var p_out = main.places[or_output_place]
+	if p_out == null:
+		return
+
+	# К примеру, добавляем final_val к token_value.
+	p_out.token_value = clamp(p_out.token_value + final_val, 0.0, 1.0)
+	p_out.update_label()
+	p_out._update_name_label()
+
+	# Если нужно, обновляем линии
+	if main.has_method("_update_connections"):
+		main._update_connections()
